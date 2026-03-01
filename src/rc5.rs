@@ -20,20 +20,22 @@ Clone
 + std::ops::Shl<Output = Self>
 + std::ops::Shr<Output = Self>{
     const ZERO: Self;
+    const P: Self;
+    const Q: Self;
+
     const BYTES: usize;
 
     fn from_u8(val: u8)-> Self;
 }
 impl<W: Word> RC5<W> {
-      /// Create new RC5 instance with key expansion
+      /// Create new RC5 instance (key not yet set)
     pub fn new(key_length: usize, rounds: usize) -> Self {
         let t = 2 * (rounds + 1);
-        let mut rc5 = RC5 {
+        RC5 {
             key_size: key_length,
             rounds,
             s: vec![W::ZERO; t],
-        };
-        rc5
+        }
     }
 
     pub fn set_key(&mut self, key: &[u8]) {
@@ -62,7 +64,7 @@ impl<W: Word> RC5<W> {
         let [mut a, mut b] = plaintext;
         a += self.s[0];
         b += self.s[1];
-        for i in 1..(self.rounds+1) {
+        for i in 1..=self.rounds {
             a = ((a ^ b) << b) + self.s[2*i];
             b = ((b ^ a) << a) + self.s[2*i + 1];
         }
@@ -91,17 +93,33 @@ impl<W: Word> RC5<W> {
     /// Key expansion - converts user key to round subkeys
     fn expand_key(&mut self, key: &[u8]) {
         assert_eq!(key.len(), self.key_size, "The submitted key should be of size: {} bytes", self.key_size);
-        let b = key.len();
+        //1. Transform the original key in an array of words L from array of bytes (u8) -> array of words (u8/u16/u32/u64/u128)
+        let b: usize = key.len();
         let w = W::BYTES;
         //ceil(b/w) = (b + (w-1)) / w
         let tmp = (b + w-1)/w;
-        let c = std::cmp::max(1,tmp);
+        let c = tmp.max(1);
         let mut key_l =vec![W::ZERO; c];
-        for i in (0..(b)).rev() {
+        for i in (0..b).rev() {
             let ix = i/w; 
             key_l[ix] = (key_l[ix] << W::from_u8(8u8)) + W::from_u8(key[i]);
 
         }
-        todo!()
+        //2. Initialize expanded key table S
+        self.s[0]=W::P;
+        for i in 1..(self.s.len()){
+            self.s[i] = self.s[i-1] + W::Q;
+        }
+        //3. Mix the key_l (vector of words) with s
+        let (mut i, mut j, mut a, mut b) = (0usize, 0usize, W::ZERO, W::ZERO);
+        let iters = 3 * self.s.len().max(c);
+        for _ in 0..iters {
+            self.s[i] = (self.s[i] + a + b) << W::from_u8(3u8);
+            a = self.s[i];
+            key_l[j] = (key_l[j] + a + b) <<(a+b);
+            b = key_l[j];
+            i = (i+1)% self.s.len();
+            j = (j+1) % c;
+        }
     }
 }
