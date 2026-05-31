@@ -1,5 +1,5 @@
 /// Tests for wrapping addition and subtraction on Word types (u8, u16)
-use crate::rc5::Word;
+use crate::word::Word;
 
 #[test]
 fn test_add_no_overflow() {

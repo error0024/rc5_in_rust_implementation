@@ -1,4 +1,5 @@
-use crate::rc5::{RC5, Word};
+use crate::rc5::RC5;
+use crate::word::Word;
 use std::path::Path;
 
 pub struct RC5CBC<W: Word> {

@@ -1,5 +1,5 @@
 /// Tests for bitwise operations: rotations and shifts
-use crate::rc5::Word;
+use crate::word::Word;
 
 #[test]
 fn test_overflow_shl() {
