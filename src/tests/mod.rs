@@ -7,5 +7,5 @@ mod key_expansion;
 mod encryption;
 mod edge_cases;
 mod paper_vectors;
-//mod cbc;
+mod cbc;
 

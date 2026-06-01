@@ -43,6 +43,7 @@ Clone
     fn wrap_sub(self, rhs: Self) -> Self;
 
     fn from_u8(val: u8)-> Self;
+    fn to_u8(self) -> u8; // for u8, u16, u32, u64
     fn from_usize(val: usize)-> Self;
 
     /// Left shift with overflow allowed (bits shifted out = 0)
@@ -62,6 +63,9 @@ Clone
         //self.checked_shl(shift).unwrap_or(Self::ZERO)
     }}
 
+
+
+
 impl Word for u8 {
     const ZERO: Self = 0u8;
     const P: Self = 0xB7;
@@ -77,6 +81,7 @@ impl Word for u8 {
     fn from_u8(val: u8)-> Self{
         val
     }
+    fn to_u8(self) -> u8 { self }
     fn from_usize(val: usize)-> Self{
         val as u8
     }
@@ -97,6 +102,7 @@ impl Word for u16 {
     fn from_u8(val: u8)-> Self{
         val as u16
     }
+    fn to_u8(self) -> u8 { self as u8 }
     fn from_usize(val: usize)-> Self{
         val as u16
     }
@@ -118,6 +124,7 @@ impl Word for u32 {
     fn from_u8(val: u8)-> Self{
         val as u32
     }
+    fn to_u8(self) -> u8 { self as u8 }
     fn from_usize(val: usize)-> Self{
         val as u32
     }
@@ -138,7 +145,28 @@ impl Word for u64 {
     fn from_u8(val: u8)-> Self{
         val as u64
     }
+    fn to_u8(self) -> u8 { self as u8 }
     fn from_usize(val: usize)-> Self{
         val as u64
     }
 }
+
+pub fn bytes_to_word<W: Word>(bytes: &[u8]) -> W {
+      let mut word = W::ZERO;
+      for &b in bytes.iter().rev() {
+          word = word.overflow_shl(W::from_u8(8)).wrap_add(W::from_u8(b));
+      }
+      word
+}
+
+pub fn word_to_bytes<W: Word>(word: W) -> Vec<u8> {
+      let mut bytes = Vec::with_capacity(W::BYTES);
+      let mut w = word;
+      for i in 0..W::BYTES {
+          bytes.push(W::to_u8(w));
+          if i < W::BYTES - 1 {
+              w = w >> W::from_u8(8);
+          }
+      }
+      bytes
+  }

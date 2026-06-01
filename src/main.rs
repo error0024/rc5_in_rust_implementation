@@ -11,6 +11,17 @@ use std::path::Path;
 
 const USIZE_BYTES: usize = std::mem::size_of::<usize>();
 
+ macro_rules! with_cipher {
+      ($cipher:expr, $key:expr, $rc5:ident, $cbc:ident => $body:block) => {
+          match $cipher {
+              RC5Cipher::W8(mut $rc5)  => { $rc5.set_key($key); let $cbc = RC5CBC::new($rc5); $body }
+              RC5Cipher::W16(mut $rc5) => { $rc5.set_key($key); let $cbc = RC5CBC::new($rc5); $body }
+              RC5Cipher::W32(mut $rc5) => { $rc5.set_key($key); let $cbc = RC5CBC::new($rc5); $body }
+              RC5Cipher::W64(mut $rc5) => { $rc5.set_key($key); let $cbc = RC5CBC::new($rc5); $body }
+          }
+      };
+  }
+
 #[derive(Debug)]
 enum Actions {
     KeyGen,
@@ -51,6 +62,15 @@ fn parse_parameters(path: &Path) -> (usize, usize, usize, Vec<u8>) {
     let key = input[3 * USIZE_BYTES..].to_vec();
     (word_size, rounds, key_length, key)
 }
+
+fn parse_enc_dec_args(args: &[String]) -> (&str, &str, &str) {
+      match args.len() {
+          2 => panic!("No key, no input, no output specified."),
+          3 => panic!("No input, no output specified."),
+          4 => panic!("No output specified."),
+          _ => (args[2].as_str(), args[3].as_str(), args[4].as_str()),
+      }
+  }
 
 fn write_parameters(cipher: &RC5Cipher, path: &Path) {
     let (word_size, rounds, key_length, key) = match cipher {
@@ -189,30 +209,25 @@ Actions:
             generate_key(&mut cipher);
             write_parameters(&cipher, Path::new(key_path_str));
         }
-        _ => {
-            match args.len() {
-                2 => {
-                    panic!("No key, no input, no output specified. Specify path to the files.")
-                }
-                3 => {
-                    panic!("No input, no output specified. Specify path to the files.")
-                }
-                4 => {
-                    panic!("No output specified. Specify path to the file.")
-                }
-                _ => {
-                    key_path_str = args[2].as_str();
-                    input_path_str = args[3].as_str();
-                    output_path_str = args[4].as_str();
-                }
-            }
-            (word_size, rounds, key_length, key) = parse_parameters(&Path::new(&key_path_str));
-            /*print!("word size: {}, rounds: {}, key_length: {}, key: {:?}", word_size, rounds, key_length, key); */
+        Actions::Encrypt => {
+            let (key_path, input_path, output_path) = parse_enc_dec_args(&args);
+            let (word_size, rounds, key_length, key) = parse_parameters(Path::new(key_path));
             check_parameters(word_size, rounds, key_length).unwrap_or_else(|e| panic!("{}", e));
-            if key_length != key.len() {
-                panic!("The key file is corrupted. The key length parameter does match the actual length of the key.")
-            }
-            todo!("Initialize the cipher algorithm from the parsed parameters. Depending on the action run encryption/decryption procedure.")
+            let mut cipher = create_cipher(word_size, key_length, rounds);
+            with_cipher!(cipher, &key, rc5, cbc => {
+                let plaintext = cbc.read_plaintext(Path::new(input_path));
+                let ciphertext = cbc.encrypt(&plaintext);
+                cbc.write_ciphertext(Path::new(output_path), &ciphertext)});
+        }
+        Actions::Decrypt => {
+            let (key_path, input_path, output_path) = parse_enc_dec_args(&args);
+            let (word_size, rounds, key_length, key) = parse_parameters(Path::new(key_path));
+            check_parameters(word_size, rounds, key_length).unwrap_or_else(|e| panic!("{}", e));
+            let mut cipher = create_cipher(word_size, key_length, rounds);
+            with_cipher!(cipher, &key, rc5, cbc => {
+                let ciphertext = cbc.read_ciphertext(Path::new(input_path));
+                let plaintext = cbc.decrypt(&ciphertext);
+                cbc.write_plaintext(Path::new(output_path), &plaintext)})
         }
     }
 }
